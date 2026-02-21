@@ -1,0 +1,39 @@
+# --- Go ---
+/bin/
+/dist/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+*.cover
+*.tmp
+
+# Go workspace (Go 1.18+)
+/go.work
+/go.work.sum
+
+# --- Proto generated outputs ---
+api/proto/gen/
+
+# --- Env / secrets ---
+.env
+.env.*
+*.local
+
+# --- Logs ---
+*.log
+
+# --- OS / Editor ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+.vscode/
+.idea/
+*.swp
+
+coverage.out
+coverage.html
