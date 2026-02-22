@@ -8,11 +8,9 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	brokerv1 "github.com/berk2k/mini-go-broker/api/proto/gen"
+	"github.com/berk2k/mini-go-broker/internal/broker"
+	"github.com/berk2k/mini-go-broker/internal/queue/inmem"
 )
-
-type brokerServer struct {
-	brokerv1.UnimplementedBrokerServiceServer
-}
 
 func main() {
 	lis, err := net.Listen("tcp", ":50051")
@@ -20,9 +18,16 @@ func main() {
 		log.Fatalf("failed to listen: %v", err)
 	}
 
+	queue := inmem.NewQueue()
+
 	grpcServer := grpc.NewServer()
 
-	brokerv1.RegisterBrokerServiceServer(grpcServer, &brokerServer{})
+	srv := &broker.Server{
+		Queue: queue,
+	}
+
+	brokerv1.RegisterBrokerServiceServer(grpcServer, srv)
+
 	reflection.Register(grpcServer)
 
 	log.Println("Broker running on :50051")
