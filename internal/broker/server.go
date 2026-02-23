@@ -30,3 +30,25 @@ func (s *Server) Publish(ctx context.Context, req *brokerv1.PublishRequest) (*br
 		MessageId: id,
 	}, nil
 }
+
+func (s *Server) Consume(
+	req *brokerv1.ConsumeRequest,
+	stream brokerv1.BrokerService_ConsumeServer,
+) error {
+
+	for {
+		msg := s.Queue.DequeueBlocking()
+
+		err := stream.Send(&brokerv1.Delivery{
+			DeliveryId: msg.ID,
+			MessageId:  msg.ID,
+			Payload:    msg.Payload,
+			Attempt:    1,
+		})
+
+		if err != nil {
+			log.Println("Consumer disconnected")
+			return err
+		}
+	}
+}
