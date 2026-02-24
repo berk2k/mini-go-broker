@@ -36,19 +36,36 @@ func (s *Server) Consume(
 	stream brokerv1.BrokerService_ConsumeServer,
 ) error {
 
+	consumerID := req.ConsumerId
+	if consumerID == "" {
+		consumerID = "default"
+	}
+
 	for {
-		msg := s.Queue.DequeueBlocking()
+		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID)
 
 		err := stream.Send(&brokerv1.Delivery{
-			DeliveryId: msg.ID,
+			DeliveryId: deliveryID,
 			MessageId:  msg.ID,
 			Payload:    msg.Payload,
-			Attempt:    1,
+			Attempt:    uint32(msg.Attempts),
 		})
 
 		if err != nil {
-			log.Println("Consumer disconnected")
 			return err
 		}
 	}
+}
+
+func (s *Server) Ack(
+	ctx context.Context,
+	req *brokerv1.AckRequest,
+) (*brokerv1.AckResponse, error) {
+
+	err := s.Queue.Ack(req.DeliveryId, req.ConsumerId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &brokerv1.AckResponse{}, nil
 }
