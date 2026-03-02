@@ -21,11 +21,12 @@ type Lease struct {
 }
 
 type Queue struct {
-	mu       sync.Mutex
-	cond     *sync.Cond
-	ready    []Message
-	inflight map[string]Lease
-	timeout  time.Duration
+	mu            sync.Mutex
+	cond          *sync.Cond
+	ready         []Message
+	inflight      map[string]Lease
+	inflightCount map[string]int // consumerID -> count
+	timeout       time.Duration
 }
 
 func (q *Queue) Size() int {
@@ -37,9 +38,10 @@ func (q *Queue) Size() int {
 
 func NewQueue() *Queue {
 	q := &Queue{
-		ready:    make([]Message, 0),
-		inflight: make(map[string]Lease),
-		timeout:  5 * time.Second, // visibility timeout
+		ready:         make([]Message, 0),
+		inflight:      make(map[string]Lease),
+		inflightCount: make(map[string]int),
+		timeout:       5 * time.Second, // visibility timeout
 	}
 	q.cond = sync.NewCond(&q.mu)
 
@@ -57,15 +59,17 @@ func (q *Queue) Enqueue(msg Message) {
 	q.cond.Signal()
 }
 
-func (q *Queue) DequeueLeaseBlocking(consumerID string) (string, Message) {
+func (q *Queue) DequeueLeaseBlocking(consumerID string, prefetch int) (string, Message) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	for len(q.ready) == 0 {
+	for len(q.ready) == 0 || q.inflightCount[consumerID] >= prefetch {
 		q.cond.Wait()
 	}
 
 	msg := q.ready[0]
+	q.inflightCount[consumerID]++
+
 	q.ready = q.ready[1:]
 
 	deliveryID := uuid.NewString()
@@ -93,6 +97,8 @@ func (q *Queue) Ack(deliveryID string, consumerID string) error {
 	}
 
 	delete(q.inflight, deliveryID)
+	q.inflightCount[consumerID]--
+	q.cond.Signal()
 	return nil
 }
 

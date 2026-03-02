@@ -41,8 +41,13 @@ func (s *Server) Consume(
 		consumerID = "default"
 	}
 
+	prefetch := int(req.Prefetch)
+	if prefetch <= 0 {
+		prefetch = 1
+	}
+
 	for {
-		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID)
+		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID, prefetch)
 
 		err := stream.Send(&brokerv1.Delivery{
 			DeliveryId: deliveryID,
