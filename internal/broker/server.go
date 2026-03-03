@@ -74,3 +74,12 @@ func (s *Server) Ack(
 
 	return &brokerv1.AckResponse{}, nil
 }
+
+func (s *Server) Nack(ctx context.Context, req *brokerv1.NackRequest) (*brokerv1.NackResponse, error) {
+	err := s.Queue.Nack(req.DeliveryId, req.ConsumerId, req.Requeue)
+	if err != nil {
+		return nil, err
+	}
+
+	return &brokerv1.NackResponse{}, nil
+}

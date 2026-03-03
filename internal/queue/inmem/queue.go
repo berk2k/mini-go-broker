@@ -102,6 +102,31 @@ func (q *Queue) Ack(deliveryID string, consumerID string) error {
 	return nil
 }
 
+func (q *Queue) Nack(deliveryID string, consumerID string, requeue bool) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	lease, ok := q.inflight[deliveryID]
+	if !ok {
+		return errors.New("invalid deliveryID")
+	}
+
+	if lease.ConsumerID != consumerID {
+		return errors.New("consumer mismatch")
+	}
+
+	delete(q.inflight, deliveryID)
+	q.inflightCount[consumerID]--
+
+	if requeue {
+		lease.Message.Attempts++
+		q.ready = append(q.ready, lease.Message)
+		q.cond.Signal()
+	}
+
+	return nil
+}
+
 func (q *Queue) reaper() {
 	ticker := time.NewTicker(1 * time.Second)
 
