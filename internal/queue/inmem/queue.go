@@ -26,6 +26,8 @@ type Queue struct {
 	ready         []Message
 	inflight      map[string]Lease
 	inflightCount map[string]int // consumerID -> count
+	dlq           []Message
+	maxRetries    int
 	timeout       time.Duration
 }
 
@@ -41,6 +43,8 @@ func NewQueue() *Queue {
 		ready:         make([]Message, 0),
 		inflight:      make(map[string]Lease),
 		inflightCount: make(map[string]int),
+		dlq:           make([]Message, 0),
+		maxRetries:    3,
 		timeout:       5 * time.Second, // visibility timeout
 	}
 	q.cond = sync.NewCond(&q.mu)
@@ -120,8 +124,13 @@ func (q *Queue) Nack(deliveryID string, consumerID string, requeue bool) error {
 
 	if requeue {
 		lease.Message.Attempts++
-		q.ready = append(q.ready, lease.Message)
-		q.cond.Signal()
+
+		if lease.Message.Attempts >= q.maxRetries {
+			q.dlq = append(q.dlq, lease.Message)
+		} else {
+			q.ready = append(q.ready, lease.Message)
+			q.cond.Signal()
+		}
 	}
 
 	return nil
@@ -138,9 +147,15 @@ func (q *Queue) reaper() {
 			if now.After(lease.Deadline) {
 				// redelivery
 				lease.Message.Attempts++
-				q.ready = append(q.ready, lease.Message)
+				q.inflightCount[lease.ConsumerID]--
+
+				if lease.Message.Attempts >= q.maxRetries {
+					q.dlq = append(q.dlq, lease.Message)
+				} else {
+					q.ready = append(q.ready, lease.Message)
+					q.cond.Signal()
+				}
 				delete(q.inflight, id)
-				q.cond.Signal()
 			}
 		}
 
