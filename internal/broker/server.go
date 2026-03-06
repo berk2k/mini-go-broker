@@ -41,12 +41,19 @@ func (s *Server) Consume(
 		consumerID = "default"
 	}
 
-	prefetch := int(req.Prefetch)
-	if prefetch <= 0 {
-		prefetch = 1
-	}
+	ctx := stream.Context()
+
+	go func() {
+		<-ctx.Done()
+		s.Queue.RequeueAllForConsumer(consumerID)
+	}()
 
 	for {
+		prefetch := int(req.Prefetch)
+		if prefetch <= 0 {
+			prefetch = 1
+		}
+
 		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID, prefetch)
 
 		err := stream.Send(&brokerv1.Delivery{

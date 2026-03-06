@@ -171,3 +171,25 @@ func (q *Queue) addToDLQ(msg Message) {
 	}
 	q.dlq = append(q.dlq, msg)
 }
+
+func (q *Queue) RequeueAllForConsumer(consumerID string) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for id, lease := range q.inflight {
+		if lease.ConsumerID == consumerID {
+
+			lease.Message.Attempts++
+
+			if lease.Message.Attempts >= q.maxRetries {
+				q.addToDLQ(lease.Message)
+			} else {
+				q.ready = append(q.ready, lease.Message)
+				q.cond.Signal()
+			}
+
+			q.inflightCount[consumerID]--
+			delete(q.inflight, id)
+		}
+	}
+}
