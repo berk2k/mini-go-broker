@@ -78,7 +78,7 @@ Each lease has:
 
 # Design Decisions & Trade-offs
 
-## 1️⃣ In-Memory Storage
+## 1: In-Memory Storage
 
 **Why:**
 - Focus on delivery semantics
@@ -90,7 +90,7 @@ Each lease has:
 
 ---
 
-## 2️⃣ Lease-Based Delivery
+## 2: Lease-Based Delivery
 
 **Why:**
 - Enables crash recovery
@@ -102,7 +102,7 @@ Each lease has:
 
 ---
 
-## 3️⃣ Visibility Timeout
+## 3: Visibility Timeout
 
 **Why:**
 - Recovers from consumer crashes
@@ -114,7 +114,7 @@ Each lease has:
 
 ---
 
-## 4️⃣ Prefetch (QoS)
+## 4: Prefetch (QoS)
 
 **Why:**
 - Prevent slow consumers from blocking system
@@ -126,7 +126,7 @@ Each lease has:
 
 ---
 
-## 5️⃣ Bounded DLQ (Drop-Oldest Policy)
+## 5: Bounded DLQ (Drop-Oldest Policy)
 
 **Why:**
 - Prevent memory exhaustion
@@ -138,7 +138,7 @@ Each lease has:
 
 ---
 
-## 6️⃣ Immediate Requeue on Disconnect
+## 6: Immediate Requeue on Disconnect
 
 **Why:**
 - Fast recovery
