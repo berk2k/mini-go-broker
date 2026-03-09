@@ -38,6 +38,7 @@ func (q *Queue) DequeueLeaseBlocking(consumerID string, prefetch int) (string, M
 		Message:    msg,
 		ConsumerID: consumerID,
 		Deadline:   time.Now().Add(q.timeout),
+		StartedAt:  time.Now(),
 	}
 
 	return deliveryID, msg
@@ -55,6 +56,10 @@ func (q *Queue) Ack(deliveryID string, consumerID string) error {
 		return errors.New("consumer mismatch")
 	}
 
+	latency := time.Since(lease.StartedAt)
+
+	q.totalProcessed++
+	q.totalProcessingNanos += uint64(latency.Nanoseconds())
 	delete(q.inflight, deliveryID)
 	q.inflightCount[consumerID]--
 	q.totalAcked++

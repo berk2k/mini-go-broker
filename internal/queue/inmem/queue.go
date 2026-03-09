@@ -14,11 +14,13 @@ type Queue struct {
 	dlq           []Message
 	shuttingDown  bool
 
-	totalPublished   uint64
-	totalAcked       uint64
-	totalRedelivered uint64
-	totalNacked      uint64
-	totalDLQ         uint64
+	totalPublished       uint64
+	totalAcked           uint64
+	totalRedelivered     uint64
+	totalNacked          uint64
+	totalDLQ             uint64
+	totalProcessed       uint64
+	totalProcessingNanos uint64
 
 	maxRetries int
 	maxDLQSize int
@@ -61,29 +63,26 @@ func (q *Queue) InflightSize() int {
 	return len(q.inflight)
 }
 
-type Metrics struct {
-	Ready            int
-	Inflight         int
-	DLQ              int
-	TotalPublished   uint64
-	TotalAcked       uint64
-	TotalRedelivered uint64
-	TotalNacked      uint64
-	TotalDLQ         uint64
-}
-
 func (q *Queue) Snapshot() Metrics {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	avg := 0.0
+	if q.totalProcessed > 0 {
+		avg = float64(q.totalProcessingNanos) /
+			float64(q.totalProcessed) /
+			1e6
+	}
 
 	return Metrics{
-		Ready:            len(q.ready),
-		Inflight:         len(q.inflight),
-		DLQ:              len(q.dlq),
-		TotalPublished:   q.totalPublished,
-		TotalAcked:       q.totalAcked,
-		TotalRedelivered: q.totalRedelivered,
-		TotalNacked:      q.totalNacked,
-		TotalDLQ:         q.totalDLQ,
+		Ready:                len(q.ready),
+		Inflight:             len(q.inflight),
+		DLQ:                  len(q.dlq),
+		TotalPublished:       q.totalPublished,
+		TotalAcked:           q.totalAcked,
+		TotalRedelivered:     q.totalRedelivered,
+		TotalNacked:          q.totalNacked,
+		TotalDLQ:             q.totalDLQ,
+		TotalProcessed:       q.totalProcessed,
+		AverageLatencyMillis: avg,
 	}
 }

@@ -12,4 +12,5 @@ type Lease struct {
 	Message    Message
 	ConsumerID string
 	Deadline   time.Time
+	StartedAt  time.Time
 }
