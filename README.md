@@ -109,7 +109,7 @@ See `DESIGN.md` for detailed trade-offs and architectural reasoning.
 - [x] Retry limit + DLQ
 - [x] Consumer disconnect handling
 - [x] Graceful shutdown (drain + timeout)
-- [X] Observability / metrics
+- [x] Observability / metrics
 - [ ] Backoff strategy
 - [ ] Optional persistence layer
 
