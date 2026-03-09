@@ -1,22 +1,22 @@
 # Mini Go Broker
 
-A learning-focused message broker written in Go to deeply understand:
+A learning-focused message broker written in Go to understand how modern messaging systems (e.g. RabbitMQ, Kafka consumers) work internally.
 
-- Message delivery guarantees
+This project implements core messaging semantics from scratch to explore:
+
+- Delivery guarantees
 - Flow control (QoS / prefetch)
 - Lease-based processing
-- Failure isolation (DLQ)
+- Failure isolation
 - Consumer lifecycle management
-- Concurrency primitives
+- Controlled shutdown patterns
 
-This project is **not intended to replace RabbitMQ**,  
-but to understand how such systems work internally by implementing core semantics from scratch.
+This is not intended to replace production brokers.  
+The goal is to make distributed messaging mechanics explicit instead of hidden behind abstractions.
 
 ---
 
-# Executive Overview
-
-This broker currently supports:
+# Features
 
 ## Core Messaging Semantics
 
@@ -25,7 +25,7 @@ This broker currently supports:
 - Visibility timeout
 - Redelivery on failure
 - Prefetch (per-consumer flow control)
-- Ack / Nack (with requeue control)
+- Ack / Nack support
 
 ## Failure Isolation
 
@@ -36,159 +36,85 @@ This broker currently supports:
 ## Consumer Lifecycle
 
 - Immediate inflight requeue on disconnect
-- Timeout-based recovery fallback
-
-This system demonstrates the fundamental behavior of modern message brokers.
+- Graceful shutdown with draining
+- Timeout-based forced requeue on shutdown
 
 ---
 
 # Architecture
-Producer <br/>
-↓<br/>
-gRPC Publish<br/>
-↓<br/>
-Ready Queue<br/>
-↓ (lease)<br/>
-Inflight Map<br/>
-↓<br/>
-Consumer (gRPC streaming)<br/>
+
+Producer </br>
+↓</br>
+gRPC Publish</br>
+↓</br>
+Ready Queue</br>
+↓ (lease)</br>
+Inflight Map</br>
+↓</br>
+Consumer (gRPC streaming)</br>
 
 Timeout / Nack → Ready or DLQ
 
 
 ---
 
-# Delivery Lifecycle
-Ready<br/>
-↓ (lease)<br/>
-Inflight<br/>
-↓ Ack → Done<br/>
-↓ Nack (requeue=true) → Ready<br/>
-↓ Timeout → Ready<br/>
-↓ Attempts >= maxRetries → DLQ<br/>
+# Delivery Model
 
-Each lease has:
+Each delivery creates a lease:
 
-- deliveryID (ephemeral)
-- messageID (stable)
-- deadline
-- attempt counter
+- `messageID` → stable message identity
+- `deliveryID` → ephemeral lease identity
+- deadline → visibility timeout
+- attempt counter → retry tracking
 
----
+Lifecycle:
 
-# Design Decisions & Trade-offs
+Ready → Inflight → Ack → Done
 
-## 1: In-Memory Storage
+↓ Timeout
 
-**Why:**
-- Focus on delivery semantics
-- Avoid persistence complexity
+↓ Nack
 
-**Trade-off:**
-- Not crash-safe
-- Memory-bound
+↓ MaxRetries → DLQ
+
+
+The broker guarantees **at-least-once delivery**.
 
 ---
 
-## 2: Lease-Based Delivery
-
-**Why:**
-- Enables crash recovery
-- Supports at-least-once semantics
-
-**Trade-off:**
-- Duplicate delivery possible
-- Exactly-once not guaranteed
-
----
-
-## 3: Visibility Timeout
-
-**Why:**
-- Recovers from consumer crashes
-- Prevents infinite inflight lock
-
-**Trade-off:**
-- Short timeout → false redelivery
-- Long timeout → slow recovery
-
----
-
-## 4: Prefetch (QoS)
-
-**Why:**
-- Prevent slow consumers from blocking system
-- Bound inflight per consumer
-
-**Trade-off:**
-- Potential fairness issues
-- Requires inflight accounting
-
----
-
-## 5: Bounded DLQ (Drop-Oldest Policy)
-
-**Why:**
-- Prevent memory exhaustion
-- Ensure system stability
-
-**Trade-off:**
-- Historical failures may be lost
-- Prioritizes stability over full history
-
----
-
-## 6: Immediate Requeue on Disconnect
-
-**Why:**
-- Fast recovery
-- Avoid waiting for timeout
-
-**Trade-off:**
-- Requires inflight scan (O(n))
-- Could be optimized with per-consumer index
-
----
-
-# Known Limitations
+# Current Limitations
 
 - In-memory only (no persistence)
-- O(n) scan on consumer disconnect
 - No partitioning
-- No exchange/routing layer
+- No exchange/routing model
 - No metrics endpoint yet
+
+See `DESIGN.md` for detailed trade-offs and architectural reasoning.
 
 ---
 
-# Roadmap to DONE
+# Roadmap
 
-- [x] At-least-once semantics
-- [x] Prefetch
-- [x] Retry limit
-- [x] Bounded DLQ
+- [x] Core delivery semantics
+- [x] Retry limit + DLQ
 - [x] Consumer disconnect handling
-- [ ] Graceful broker shutdown
-- [ ] Metrics (ready/inflight/DLQ)
-- [ ] Nack backoff strategy
+- [x] Graceful shutdown (drain + timeout)
+- [ ] Observability / metrics
+- [ ] Backoff strategy
 - [ ] Optional persistence layer
 
 ---
 
-# What This Project Demonstrates
+# Learning Focus
 
-- Concurrency control using mutex and condition variables
-- Lease-based state machine design
-- Flow control implementation
-- Failure isolation strategies
-- Trade-off-driven system design
+This project explores:
 
----
+- Lease-based message processing
+- Backpressure and flow control
+- Failure isolation patterns
+- Distributed shutdown strategies
+- Concurrency design in Go
 
-# Systems Learning Focus
+For detailed design decisions and trade-offs, see:
 
-This project is part of a broader exploration into:
-
-- Distributed systems fundamentals
-- Backpressure propagation
-- Async messaging design
-- Reliability vs complexity trade-offs
+👉 `DESIGN.md`
