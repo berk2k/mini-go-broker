@@ -27,6 +27,7 @@ type Queue struct {
 	inflight      map[string]Lease
 	inflightCount map[string]int // consumerID -> count
 	dlq           []Message
+	shuttingDown  bool
 	maxRetries    int
 	maxDLQSize    int
 	timeout       time.Duration
@@ -71,6 +72,10 @@ func (q *Queue) DequeueLeaseBlocking(consumerID string, prefetch int) (string, M
 
 	for len(q.ready) == 0 || q.inflightCount[consumerID] >= prefetch {
 		q.cond.Wait()
+	}
+
+	if q.shuttingDown {
+		return "", Message{}
 	}
 
 	msg := q.ready[0]
@@ -192,4 +197,12 @@ func (q *Queue) RequeueAllForConsumer(consumerID string) {
 			delete(q.inflight, id)
 		}
 	}
+}
+
+func (q *Queue) Shutdown() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	q.shuttingDown = true
+	q.cond.Broadcast()
 }

@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -29,6 +33,16 @@ func main() {
 	brokerv1.RegisterBrokerServiceServer(grpcServer, srv)
 
 	reflection.Register(grpcServer)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Shutdown signal received...")
+
+		queue.Shutdown()
+		grpcServer.GracefulStop()
+	}()
 
 	log.Println("Broker running on :50051")
 
