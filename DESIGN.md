@@ -256,7 +256,52 @@ Trade-off:
 
 ---
 
-# 9: Known Limitations
+---
+
+## 9: Observability Design
+
+The broker exposes two metrics endpoints:
+
+- `/metrics/json` → Human-readable debug snapshot
+- `/metrics` → Prometheus exposition format (text/plain; version=0.0.4)
+
+### Metrics Categories
+
+**Gauges**
+- ready queue size
+- inflight count
+- DLQ size
+- average processing latency (ms)
+
+**Counters**
+- total published
+- total acked
+- total nacked
+- total redelivered
+- total processed
+- total DLQ moves
+
+### Processing Latency
+
+Processing latency is measured as:
+
+Lease.StartedAt → Ack time
+
+This provides average end-to-end processing time per message.
+
+### Trade-off
+
+Current implementation:
+- Uses snapshot-based metrics (derived from internal state)
+- Protected by queue mutex
+- Lightweight and dependency-free
+
+Alternative (future):
+- Prometheus Go client library
+- Histogram buckets
+- Atomic counters
+
+# 10: Known Limitations
 
 - In-memory only (no persistence)
 - O(n) inflight scan on disconnect
@@ -270,7 +315,7 @@ These are intentional omissions to keep the focus on delivery semantics.
 
 ---
 
-# 10: Future Improvements
+# 11: Future Improvements
 
 Potential extensions:
 

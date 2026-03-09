@@ -39,6 +39,15 @@ The goal is to make distributed messaging mechanics explicit instead of hidden b
 - Graceful shutdown with draining
 - Timeout-based forced requeue on shutdown
 
+## Observability
+
+- JSON metrics endpoint (`/metrics/json`)
+- Prometheus-compatible metrics endpoint (`/metrics`)
+- Ready / Inflight / DLQ gauges
+- Delivery counters (published, acked, nacked, redelivered)
+- Processing latency measurement (average)
+- Total successfully processed messages
+
 ---
 
 # Architecture
@@ -87,7 +96,8 @@ The broker guarantees **at-least-once delivery**.
 - In-memory only (no persistence)
 - No partitioning
 - No exchange/routing model
-- No metrics endpoint yet
+- No histogram-based latency buckets (average only)
+- No structured logging yet
 
 See `DESIGN.md` for detailed trade-offs and architectural reasoning.
 
