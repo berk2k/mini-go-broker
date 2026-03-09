@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -41,6 +42,26 @@ func main() {
 		log.Println("Shutdown signal received...")
 
 		queue.Shutdown()
+
+		drainTimeout := 10 * time.Second
+		deadline := time.Now().Add(drainTimeout)
+
+		for {
+			inflight := queue.InflightSize()
+			if inflight == 0 {
+				log.Println("All inflight messages drained.")
+				break
+			}
+
+			if time.Now().After(deadline) {
+				log.Println("Drain timeout reached. Forcing requeue...")
+				queue.ForceRequeueAll()
+				break
+			}
+
+			time.Sleep(500 * time.Millisecond)
+		}
+
 		grpcServer.GracefulStop()
 	}()
 

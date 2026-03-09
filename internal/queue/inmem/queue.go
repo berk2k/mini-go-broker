@@ -206,3 +206,27 @@ func (q *Queue) Shutdown() {
 	q.shuttingDown = true
 	q.cond.Broadcast()
 }
+
+func (q *Queue) InflightSize() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.inflight)
+}
+
+func (q *Queue) ForceRequeueAll() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	for id, lease := range q.inflight {
+		lease.Message.Attempts++
+
+		if lease.Message.Attempts >= q.maxRetries {
+			q.addToDLQ(lease.Message)
+		} else {
+			q.ready = append(q.ready, lease.Message)
+		}
+
+		delete(q.inflight, id)
+	}
+	q.cond.Broadcast()
+}
