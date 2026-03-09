@@ -258,7 +258,7 @@ Trade-off:
 
 ---
 
-## 9: Observability Design
+# 9: Observability Design
 
 The broker exposes two metrics endpoints:
 
