@@ -14,3 +14,8 @@ type Lease struct {
 	Deadline   time.Time
 	StartedAt  time.Time
 }
+
+type DelayedMessage struct {
+	Message Message
+	ReadyAt time.Time
+}

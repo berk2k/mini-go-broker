@@ -8,7 +8,7 @@ import (
 type Queue struct {
 	mu            sync.Mutex
 	cond          *sync.Cond
-	ready         []Message
+	ready         []DelayedMessage
 	inflight      map[string]Lease
 	inflightCount map[string]int
 	dlq           []Message
@@ -29,7 +29,7 @@ type Queue struct {
 
 func NewQueue() *Queue {
 	q := &Queue{
-		ready:         make([]Message, 0),
+		ready:         make([]DelayedMessage, 0),
 		inflight:      make(map[string]Lease),
 		inflightCount: make(map[string]int),
 		dlq:           make([]Message, 0),

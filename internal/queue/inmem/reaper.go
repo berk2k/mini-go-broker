@@ -1,6 +1,10 @@
 package inmem
 
-import "time"
+import (
+	"time"
+
+	"github.com/berk2k/mini-go-broker/pkg/backoff"
+)
 
 func (q *Queue) reaper() {
 	ticker := time.NewTicker(1 * time.Second)
@@ -18,7 +22,14 @@ func (q *Queue) reaper() {
 				if lease.Message.Attempts >= q.maxRetries {
 					q.addToDLQ(lease.Message)
 				} else {
-					q.ready = append(q.ready, lease.Message)
+					delay := backoff.Exponential(lease.Message.Attempts)
+
+					q.ready = append(q.ready, DelayedMessage{
+						Message: lease.Message,
+						ReadyAt: time.Now().Add(delay),
+					})
+
+					q.totalRedelivered++
 					q.cond.Signal()
 				}
 
