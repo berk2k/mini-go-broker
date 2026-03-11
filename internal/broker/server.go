@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	brokerv1 "github.com/berk2k/mini-go-broker/api/proto/gen"
+	"github.com/berk2k/mini-go-broker/internal/config"
 	"github.com/berk2k/mini-go-broker/internal/queue/inmem"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ type Server struct {
 	brokerv1.UnimplementedBrokerServiceServer
 	Queue  *inmem.Queue
 	Logger *slog.Logger
+	Config config.Config
 }
 
 func (s *Server) Publish(ctx context.Context, req *brokerv1.PublishRequest) (*brokerv1.PublishResponse, error) {
@@ -60,7 +62,7 @@ func (s *Server) Consume(
 	for {
 		prefetch := int(req.Prefetch)
 		if prefetch <= 0 {
-			prefetch = 1
+			prefetch = s.Config.DefaultPrefetch
 		}
 
 		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID, prefetch)

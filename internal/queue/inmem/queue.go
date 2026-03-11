@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/berk2k/mini-go-broker/internal/config"
 )
 
 type Queue struct {
@@ -30,15 +32,15 @@ type Queue struct {
 	logger *slog.Logger
 }
 
-func NewQueue(logger *slog.Logger) *Queue {
+func NewQueue(logger *slog.Logger, cfg config.Config) *Queue {
 	q := &Queue{
 		ready:         make([]DelayedMessage, 0),
 		inflight:      make(map[string]Lease),
 		inflightCount: make(map[string]int),
 		dlq:           make([]Message, 0),
-		maxRetries:    3,
-		maxDLQSize:    100,
-		timeout:       5 * time.Second,
+		maxRetries:    cfg.MaxRetries,
+		maxDLQSize:    cfg.MaxDLQSize,
+		timeout:       cfg.VisibilityTimeout,
 		logger:        logger,
 	}
 	q.cond = sync.NewCond(&q.mu)

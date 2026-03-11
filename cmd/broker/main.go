@@ -9,38 +9,43 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/joho/godotenv"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
 	brokerv1 "github.com/berk2k/mini-go-broker/api/proto/gen"
 	"github.com/berk2k/mini-go-broker/internal/broker"
+	"github.com/berk2k/mini-go-broker/internal/config"
 	"github.com/berk2k/mini-go-broker/internal/observability"
 	"github.com/berk2k/mini-go-broker/internal/queue/inmem"
 )
 
 func main() {
+	godotenv.Load()
+
+	cfg := config.Load()
 	logger := observability.NewLogger()
 
-	queue := inmem.NewQueue(logger)
+	queue := inmem.NewQueue(logger, cfg)
 
-	lis, err := net.Listen("tcp", ":50051")
+	lis, err := net.Listen("tcp", cfg.GRPCPort)
 	if err != nil {
 		logger.Error("failed to listen", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 
 	grpcServer := grpc.NewServer()
-	srv := &broker.Server{Queue: queue, Logger: logger}
+	srv := &broker.Server{Queue: queue, Logger: logger, Config: cfg}
 	brokerv1.RegisterBrokerServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
 
-	observability.StartMetricsServer(queue, ":8080", logger)
+	observability.StartMetricsServer(queue, cfg.MetricsPort, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	go func() {
-		logger.Info("broker_started", slog.String("port", ":50051"))
+		logger.Info("broker_started", slog.String("port", cfg.GRPCPort))
 		if err := grpcServer.Serve(lis); err != nil {
 			logger.Error("grpc_serve_failed", slog.String("error", err.Error()))
 			os.Exit(1)
@@ -52,8 +57,7 @@ func main() {
 
 	queue.Shutdown()
 
-	drainTimeout := 10 * time.Second
-	deadline := time.Now().Add(drainTimeout)
+	deadline := time.Now().Add(cfg.DrainTimeout)
 
 	for {
 		inflight := queue.InflightSize()
