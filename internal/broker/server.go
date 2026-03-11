@@ -67,6 +67,10 @@ func (s *Server) Consume(
 
 		deliveryID, msg := s.Queue.DequeueLeaseBlocking(consumerID, prefetch)
 
+		if deliveryID == "" {
+			return nil
+		}
+
 		err := stream.Send(&brokerv1.Delivery{
 			DeliveryId: deliveryID,
 			MessageId:  msg.ID,
