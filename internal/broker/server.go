@@ -2,7 +2,7 @@ package broker
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	brokerv1 "github.com/berk2k/mini-go-broker/api/proto/gen"
 	"github.com/berk2k/mini-go-broker/internal/queue/inmem"
@@ -12,11 +12,11 @@ import (
 
 type Server struct {
 	brokerv1.UnimplementedBrokerServiceServer
-	Queue *inmem.Queue
+	Queue  *inmem.Queue
+	Logger *slog.Logger
 }
 
 func (s *Server) Publish(ctx context.Context, req *brokerv1.PublishRequest) (*brokerv1.PublishResponse, error) {
-
 	id := uuid.NewString()
 
 	s.Queue.Enqueue(inmem.Message{
@@ -24,7 +24,10 @@ func (s *Server) Publish(ctx context.Context, req *brokerv1.PublishRequest) (*br
 		Payload: req.Payload,
 	})
 
-	log.Printf("Message published. Queue size=%d\n", s.Queue.Size())
+	s.Logger.Info("message_published",
+		slog.String("messageID", id),
+		slog.Int("queueSize", s.Queue.Size()),
+	)
 
 	return &brokerv1.PublishResponse{
 		MessageId: id,
@@ -35,16 +38,22 @@ func (s *Server) Consume(
 	req *brokerv1.ConsumeRequest,
 	stream brokerv1.BrokerService_ConsumeServer,
 ) error {
-
 	consumerID := req.ConsumerId
 	if consumerID == "" {
 		consumerID = "default"
 	}
 
+	s.Logger.Info("consumer_connected",
+		slog.String("consumerID", consumerID),
+	)
+
 	ctx := stream.Context()
 
 	go func() {
 		<-ctx.Done()
+		s.Logger.Info("consumer_disconnected",
+			slog.String("consumerID", consumerID),
+		)
 		s.Queue.RequeueAllForConsumer(consumerID)
 	}()
 
@@ -73,7 +82,6 @@ func (s *Server) Ack(
 	ctx context.Context,
 	req *brokerv1.AckRequest,
 ) (*brokerv1.AckResponse, error) {
-
 	err := s.Queue.Ack(req.DeliveryId, req.ConsumerId)
 	if err != nil {
 		return nil, err

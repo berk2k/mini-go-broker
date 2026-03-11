@@ -1,6 +1,7 @@
 package inmem
 
 import (
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -25,9 +26,11 @@ type Queue struct {
 	maxRetries int
 	maxDLQSize int
 	timeout    time.Duration
+
+	logger *slog.Logger
 }
 
-func NewQueue() *Queue {
+func NewQueue(logger *slog.Logger) *Queue {
 	q := &Queue{
 		ready:         make([]DelayedMessage, 0),
 		inflight:      make(map[string]Lease),
@@ -36,11 +39,10 @@ func NewQueue() *Queue {
 		maxRetries:    3,
 		maxDLQSize:    100,
 		timeout:       5 * time.Second,
+		logger:        logger,
 	}
 	q.cond = sync.NewCond(&q.mu)
-
 	go q.reaper()
-
 	return q
 }
 

@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net"
 	"os"
 	"os/signal"
@@ -19,37 +19,36 @@ import (
 )
 
 func main() {
-	// --- Infrastructure setup ---
-	queue := inmem.NewQueue()
+	logger := observability.NewLogger()
+
+	queue := inmem.NewQueue(logger)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		logger.Error("failed to listen", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 
 	grpcServer := grpc.NewServer()
-	srv := &broker.Server{Queue: queue}
+	srv := &broker.Server{Queue: queue, Logger: logger}
 	brokerv1.RegisterBrokerServiceServer(grpcServer, srv)
 	reflection.Register(grpcServer)
 
-	// --- Start Metrics HTTP Server ---
-	observability.StartMetricsServer(queue, ":8080")
+	observability.StartMetricsServer(queue, ":8080", logger)
 
-	// --- Graceful shutdown context ---
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// --- Start gRPC server in goroutine ---
 	go func() {
-		log.Println("Broker running on :50051")
+		logger.Info("broker_started", slog.String("port", ":50051"))
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			logger.Error("grpc_serve_failed", slog.String("error", err.Error()))
+			os.Exit(1)
 		}
 	}()
 
-	// --- Shutdown handler ---
 	<-ctx.Done()
-	log.Println("Shutdown signal received...")
+	logger.Info("shutdown_signal_received")
 
 	queue.Shutdown()
 
@@ -60,12 +59,12 @@ func main() {
 		inflight := queue.InflightSize()
 
 		if inflight == 0 {
-			log.Println("All inflight messages drained.")
+			logger.Info("drain_complete")
 			break
 		}
 
 		if time.Now().After(deadline) {
-			log.Println("Drain timeout reached. Forcing requeue...")
+			logger.Warn("drain_timeout_reached", slog.Int("inflight", inflight))
 			queue.ForceRequeueAll()
 			break
 		}
@@ -74,5 +73,5 @@ func main() {
 	}
 
 	grpcServer.GracefulStop()
-	log.Println("Broker stopped cleanly.")
+	logger.Info("broker_stopped")
 }

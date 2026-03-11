@@ -3,13 +3,13 @@ package observability
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/berk2k/mini-go-broker/internal/queue/inmem"
 )
 
-func StartMetricsServer(queue *inmem.Queue, port string) {
+func StartMetricsServer(queue *inmem.Queue, port string, logger *slog.Logger) {
 
 	http.HandleFunc("/metrics/json", func(w http.ResponseWriter, r *http.Request) {
 		m := queue.Snapshot()
@@ -67,11 +67,11 @@ func StartMetricsServer(queue *inmem.Queue, port string) {
 		fmt.Fprintf(w, "mini_broker_avg_processing_latency_ms %.2f\n", m.AverageLatencyMillis)
 	})
 
-	log.Printf("Metrics server running on %s\n", port)
+	logger.Info("metrics_server_started", slog.String("port", port))
 
 	go func() {
 		if err := http.ListenAndServe(port, nil); err != nil {
-			log.Printf("Metrics server error: %v", err)
+			logger.Error("metrics_server_failed", slog.String("error", err.Error()))
 		}
 	}()
 }

@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/berk2k/mini-go-broker/pkg/backoff"
@@ -64,6 +65,13 @@ func (q *Queue) DequeueLeaseBlocking(consumerID string, prefetch int) (string, M
 			StartedAt:  time.Now(),
 		}
 
+		q.logger.Info("lease_created",
+			slog.String("deliveryID", deliveryID),
+			slog.String("messageID", dm.Message.ID),
+			slog.String("consumerID", consumerID),
+			slog.Int("attempt", dm.Message.Attempts),
+		)
+
 		return deliveryID, dm.Message
 	}
 }
@@ -90,6 +98,13 @@ func (q *Queue) Ack(deliveryID string, consumerID string) error {
 	q.inflightCount[consumerID]--
 	q.totalAcked++
 
+	q.logger.Info("message_acked",
+		slog.String("deliveryID", deliveryID),
+		slog.String("messageID", lease.Message.ID),
+		slog.String("consumerID", consumerID),
+		slog.Float64("latencyMs", float64(latency.Milliseconds())),
+	)
+
 	q.cond.Signal()
 	return nil
 }
@@ -115,6 +130,11 @@ func (q *Queue) Nack(deliveryID string, consumerID string, requeue bool) error {
 		q.totalNacked++
 
 		if lease.Message.Attempts >= q.maxRetries {
+			q.logger.Warn("message_dlq",
+				slog.String("messageID", lease.Message.ID),
+				slog.String("reason", "nack_max_retries"),
+				slog.Int("attempts", lease.Message.Attempts),
+			)
 			q.addToDLQ(lease.Message)
 		} else {
 			delay := backoff.Exponential(lease.Message.Attempts)
@@ -123,6 +143,13 @@ func (q *Queue) Nack(deliveryID string, consumerID string, requeue bool) error {
 				Message: lease.Message,
 				ReadyAt: time.Now().Add(delay),
 			})
+
+			q.logger.Info("message_requeued",
+				slog.String("messageID", lease.Message.ID),
+				slog.String("reason", "nack"),
+				slog.Int("attempt", lease.Message.Attempts),
+				slog.Float64("delayMs", float64(delay.Milliseconds())),
+			)
 
 			q.totalRedelivered++
 			q.cond.Signal()

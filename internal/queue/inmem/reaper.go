@@ -1,6 +1,7 @@
 package inmem
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/berk2k/mini-go-broker/pkg/backoff"
@@ -16,10 +17,14 @@ func (q *Queue) reaper() {
 		for id, lease := range q.inflight {
 			if now.After(lease.Deadline) {
 				lease.Message.Attempts++
-				q.totalRedelivered++
 				q.inflightCount[lease.ConsumerID]--
 
 				if lease.Message.Attempts >= q.maxRetries {
+					q.logger.Warn("message_dlq",
+						slog.String("messageID", lease.Message.ID),
+						slog.String("reason", "visibility_timeout_max_retries"),
+						slog.Int("attempts", lease.Message.Attempts),
+					)
 					q.addToDLQ(lease.Message)
 				} else {
 					delay := backoff.Exponential(lease.Message.Attempts)
@@ -28,6 +33,13 @@ func (q *Queue) reaper() {
 						Message: lease.Message,
 						ReadyAt: time.Now().Add(delay),
 					})
+
+					q.logger.Info("message_requeued",
+						slog.String("messageID", lease.Message.ID),
+						slog.String("reason", "visibility_timeout"),
+						slog.Int("attempt", lease.Message.Attempts),
+						slog.Float64("delayMs", float64(delay.Milliseconds())),
+					)
 
 					q.totalRedelivered++
 					q.cond.Signal()
