@@ -256,8 +256,6 @@ Trade-off:
 
 ---
 
----
-
 # 9: Observability Design
 
 The broker exposes two metrics endpoints:
@@ -301,30 +299,127 @@ Alternative (future):
 - Histogram buckets
 - Atomic counters
 
-# 10: Known Limitations
+---
+
+# 10: Structured Logging
+
+The broker uses `log/slog` from the Go standard library.
+
+### Why slog?
+
+- Zero external dependencies
+- Structured, typed key-value fields
+- JSON output format by default
+- Part of Go stdlib since 1.21
+
+### Why Dependency Injection?
+
+Logger is passed via constructor (`NewQueue(logger, cfg)`) and struct fields (`Server.Logger`).
+
+- No global state
+- Testable — mock logger can be injected in tests
+- Each component owns its logger reference
+
+Alternative rejected:
+- Global `slog.SetDefault()` — harder to test, implicit dependency
+
+### Why JSON Format?
+
+```json
+{"time":"2026-03-11T12:00:00Z","level":"INFO","msg":"message_published","messageID":"abc123","queueSize":5}
+```
+
+JSON logs are machine-readable. Production log systems (Datadog, Grafana Loki, Elasticsearch) parse JSON natively — enabling field-level filtering and querying without regex.
+
+Plain string logs require fragile regex parsing.
+
+### What Is Not Logged — And Why
+
+Message payload is never logged.
+
+- Payload may contain PII, tokens, or sensitive data
+- Logging payload would be a security violation in most production environments
+
+Only metadata is logged: messageID, deliveryID, consumerID, attempt count, latency.
+
+### Key Log Events
+
+| Event | Level | Where |
+|---|---|---|
+| broker_started | INFO | main.go |
+| broker_stopped | INFO | main.go |
+| shutdown_signal_received | INFO | main.go |
+| drain_complete | INFO | main.go |
+| drain_timeout_reached | WARN | main.go |
+| metrics_server_started | INFO | observability/metrics.go |
+| consumer_connected | INFO | server.go |
+| consumer_disconnected | INFO | server.go |
+| message_published | INFO | server.go |
+| lease_created | INFO | delivery.go |
+| message_acked | INFO | delivery.go |
+| message_nacked | INFO | delivery.go |
+| message_requeued | INFO | delivery.go, reaper.go, lifecycle.go |
+| message_dlq | WARN | delivery.go, reaper.go, lifecycle.go |
+
+---
+
+# 11: Configuration
+
+All runtime parameters are externalized via environment variables.
+
+### Loading Strategy
+
+```
+Environment Variable → Default Value
+```
+
+If the environment variable is set, it is used. Otherwise, the hardcoded default is applied. No config file is required to run the broker.
+
+### Why godotenv?
+
+`godotenv` is used only for local development — it loads a `.env` file into the process environment before `config.Load()` runs.
+
+In production (Docker, Kubernetes), real environment variables are used directly. `godotenv.Load()` silently does nothing if no `.env` file is present.
+
+### Configurable Parameters
+
+| Variable | Default | Description |
+|---|---|---|
+| GRPC_PORT | :50051 | gRPC server listen address |
+| METRICS_PORT | :8080 | HTTP metrics server address |
+| MAX_RETRIES | 3 | Max delivery attempts before DLQ |
+| MAX_DLQ_SIZE | 100 | Maximum DLQ capacity (drop-oldest) |
+| VISIBILITY_TIMEOUT_SEC | 5 | Lease deadline in seconds |
+| DRAIN_TIMEOUT_SEC | 10 | Graceful shutdown drain window |
+| DEFAULT_PREFETCH | 1 | Default per-consumer prefetch limit |
+
+### Trade-off
+
+This approach avoids flag parsing complexity and config file formats. The broker remains stateless and container-friendly with zero required configuration.
+
+---
+
+# 12: Known Limitations
 
 - In-memory only (no persistence)
-- O(n) inflight scan on disconnect
+- O(n) inflight scan on consumer disconnect
 - No partitioning or sharding
-- No exchange/routing model
-- No metrics endpoint
-- No backoff strategy for retries
+- No exchange or routing model
 - No idempotency key tracking
 
 These are intentional omissions to keep the focus on delivery semantics.
 
 ---
 
-# 11: Future Improvements
+# 13: Future Improvements
 
 Potential extensions:
 
 - Persistent storage layer
 - Partitioned queues
 - Exchange & routing model
-- Prometheus metrics
-- Exponential backoff on Nack
-- Per-consumer inflight index
+- Prometheus client library (histogram buckets)
+- Per-consumer inflight index (O(k) disconnect)
 - Priority queues
 - Message TTL
 
@@ -339,6 +434,7 @@ This project demonstrates understanding of:
 - Failure isolation
 - Backpressure control
 - Controlled shutdown lifecycle
+- Structured observability
 - Trade-off driven design
 
 The implementation focuses on clarity of semantics over feature completeness.
@@ -356,4 +452,3 @@ Its purpose is to expose the internal mechanics behind:
 - Distributed async systems
 
 By building these primitives manually, the underlying systems behavior becomes explicit instead of hidden behind abstractions.
-
