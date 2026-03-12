@@ -218,7 +218,7 @@ _Tested with `go run cmd/loadtest/main.go`_
 - No exchange/routing model
 - No histogram-based latency buckets (average only)
 
-See `DESIGN.md` for detailed trade-offs and architectural reasoning.
+See [DESIGN.md](DESIGN.md) for detailed trade-offs and architectural reasoning.
 
 ---
 
@@ -250,4 +250,4 @@ This project explores:
 
 For detailed design decisions and trade-offs, see:
 
-👉 `DESIGN.md`
+👉 [DESIGN.md](DESIGN.md)
