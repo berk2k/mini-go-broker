@@ -158,3 +158,22 @@ func (q *Queue) Nack(deliveryID string, consumerID string, requeue bool) error {
 
 	return nil
 }
+
+func (q *Queue) RenewLease(deliveryID string, consumerID string) error {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	lease, ok := q.inflight[deliveryID]
+	if !ok {
+		return errors.New("invalid deliveryID")
+	}
+
+	if lease.ConsumerID != consumerID {
+		return errors.New("consumer mismatch")
+	}
+
+	lease.Deadline = time.Now().Add(q.timeout)
+	q.inflight[deliveryID] = lease
+
+	return nil
+}
