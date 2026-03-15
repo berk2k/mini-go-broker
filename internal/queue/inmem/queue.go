@@ -90,3 +90,21 @@ func (q *Queue) Snapshot() Metrics {
 		AverageLatencyMillis: avg,
 	}
 }
+
+func (q *Queue) DrainDLQ() []Message {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	messages := q.dlq
+	q.dlq = make([]Message, 0)
+	return messages
+}
+
+func (q *Queue) PeekDLQ() []Message {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	result := make([]Message, len(q.dlq))
+	copy(result, q.dlq)
+	return result
+}
