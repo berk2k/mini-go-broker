@@ -148,6 +148,23 @@ curl http://localhost:8080/metrics
 
 ---
 
+## Admin CLI
+
+A Python admin CLI is available for broker observability and operational control.
+```bash
+cd cli
+pip install -r requirements.txt
+
+python broker_cli.py metrics        # metrics snapshot
+python broker_cli.py health         # health check with thresholds
+python broker_cli.py dlq-inspect    # DLQ status
+python broker_cli.py config-validate # validate configuration
+```
+
+See [cli/README.md](cli/README.md) for full documentation.
+
+---
+
 # Architecture
 
 ```
@@ -232,6 +249,7 @@ See [DESIGN.md](DESIGN.md) for detailed trade-offs and architectural reasoning.
 - [x] Observability / metrics
 - [x] Structured logging (slog)
 - [x] Environment-based configuration
+- [x] Python admin CLI (metrics, health, DLQ inspect, config validate)
 - [ ] Optional persistence layer
 - [ ] Per-consumer inflight index (O(k) disconnect)
 
