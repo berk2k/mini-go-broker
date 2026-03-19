@@ -56,6 +56,21 @@ Checks types, value constraints, and cross-variable logic (e.g. drain timeout vs
 python broker_cli.py config-validate
 ```
 
+### `dlq-replay`
+Replay all DLQ messages back into the ready queue. Useful after a bug fix to reprocess failed messages.
+```bash
+python broker_cli.py dlq-replay
+```
+
+---
+
+### `dlq-purge`
+Permanently delete all messages from the Dead Letter Queue.
+```bash
+python broker_cli.py dlq-purge
+```
+
+
 ---
 
 ## Configuration
@@ -89,3 +104,10 @@ Publishing is intentionally excluded — that is the producer's responsibility.
 
 ![metrics](screenshots/metrics.png)
 ![config-validate](screenshots/config-validate.png)
+![dlq-purge](screenshots/purge.png)
+
+### before dlq replay
+![dlq-replay](screenshots/before_replay.png)
+
+### after dlq replay
+![dlq-purge](screenshots/after_replay.png)

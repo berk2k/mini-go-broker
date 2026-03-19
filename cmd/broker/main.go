@@ -40,6 +40,7 @@ func main() {
 	reflection.Register(grpcServer)
 
 	observability.StartMetricsServer(queue, cfg.MetricsPort, logger)
+	observability.RegisterAdminHandlers(queue, logger)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

@@ -217,7 +217,55 @@ def dlq_inspect(ctx):
 
     console.print()
 
+@cli.command("dlq-purge")
+@click.pass_context
+def dlq_purge(ctx):
+    """Purge all messages from the Dead Letter Queue."""
+    host = ctx.obj["host"]
+    port = ctx.obj["port"]
 
+    url = f"http://{host}:{port}/dlq/purge"
+    try:
+        response = requests.post(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.ConnectionError:
+        console.print(f"[red]✗ Could not connect to broker at {url}[/red]")
+        sys.exit(1)
+
+    count = data.get("purged", 0)
+    console.print()
+    if count == 0:
+        console.print("[dim]DLQ was already empty.[/dim]")
+    else:
+        console.print(f"[red]✗ Purged {count} message(s) from DLQ.[/red]")
+    console.print()
+
+
+@cli.command("dlq-replay")
+@click.pass_context
+def dlq_replay(ctx):
+    """Replay all DLQ messages back into the ready queue."""
+    host = ctx.obj["host"]
+    port = ctx.obj["port"]
+
+    url = f"http://{host}:{port}/dlq/replay"
+    try:
+        response = requests.post(url, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+    except requests.exceptions.ConnectionError:
+        console.print(f"[red]✗ Could not connect to broker at {url}[/red]")
+        sys.exit(1)
+
+    count = data.get("replayed", 0)
+    console.print()
+    if count == 0:
+        console.print("[dim]DLQ was empty, nothing to replay.[/dim]")
+    else:
+        console.print(f"[green]✓ Replayed {count} message(s) back to ready queue.[/green]")
+    console.print()
+    
 # --------------------------------------------------------------------------- #
 # config validate                                                               #
 # --------------------------------------------------------------------------- #

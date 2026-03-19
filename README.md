@@ -155,10 +155,12 @@ A Python admin CLI is available for broker observability and operational control
 cd cli
 pip install -r requirements.txt
 
-python broker_cli.py metrics        # metrics snapshot
-python broker_cli.py health         # health check with thresholds
-python broker_cli.py dlq-inspect    # DLQ status
-python broker_cli.py config-validate # validate configuration
+python broker_cli.py metrics          # metrics snapshot
+python broker_cli.py health           # health check with thresholds
+python broker_cli.py dlq-inspect      # DLQ status
+python broker_cli.py dlq-replay       # replay DLQ messages to ready queue
+python broker_cli.py dlq-purge        # permanently delete DLQ messages
+python broker_cli.py config-validate  # validate configuration
 ```
 
 See [cli/README.md](cli/README.md) for full documentation.
