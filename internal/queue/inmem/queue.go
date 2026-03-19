@@ -108,3 +108,24 @@ func (q *Queue) PeekDLQ() []Message {
 	copy(result, q.dlq)
 	return result
 }
+
+func (q *Queue) ReplayDLQ() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	count := len(q.dlq)
+	for _, msg := range q.dlq {
+		msg.Attempts = 0
+		q.ready = append(q.ready, DelayedMessage{
+			Message: msg,
+			ReadyAt: time.Now(),
+		})
+		q.logger.Info("message_requeued",
+			slog.String("messageID", msg.ID),
+			slog.String("reason", "dlq_replay"),
+		)
+	}
+	q.dlq = make([]Message, 0)
+	q.cond.Broadcast()
+	return count
+}
