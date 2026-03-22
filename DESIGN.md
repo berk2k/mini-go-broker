@@ -117,6 +117,19 @@ Alternative design:
 
 Current implementation prioritizes simplicity and clarity.
 
+### Observed Impact
+
+Load testing confirmed that prefetch tuning has a significant effect on throughput:
+
+| Prefetch | Consumers | Throughput |
+|----------|-----------|------------|
+| 5        | 3         | ~16 msg/sec |
+| 50       | 3         | ~1,225 msg/sec |
+
+With prefetch=5, consumers spend most of their time waiting for the next delivery slot to open up — the queue is underutilized. With prefetch=50, consumers can hold more messages in flight simultaneously and throughput scales accordingly.
+
+This is a direct demonstration of why prefetch tuning is critical in real broker deployments (e.g. RabbitMQ `basic.qos`).
+
 ---
 
 # 5: Retry & Dead Letter Queue (DLQ)
@@ -253,6 +266,12 @@ The broker uses:
 Trade-off:
 - Slightly more complex than channel-only design
 - Requires careful locking discipline
+
+### Observed Behavior Under Load
+
+CPU profiling via pprof at 50 concurrent consumers showed mutex acquisition (runtime.lock2) at 0.6% of CPU time — well below expectations. However, the profile was captured with only 13.4% sample coverage because the workload completed too quickly for meaningful sampling.
+
+The flat throughput curve across 3–50 consumers (less than 8% variance) is a stronger signal: if mutex contention were significant, throughput would degrade as consumer count increases. At this message volume and hardware, the single-mutex design does not produce observable contention.
 
 ---
 
@@ -425,6 +444,52 @@ Potential extensions:
 
 ---
 
+# 14: Benchmark Results
+
+Load tests were run on a local machine using `go run ./cmd/loadtest`.
+
+## Scaling Test — 500 messages, prefetch 50
+
+Consumer count increased from 3 to 50 to observe scaling behavior.
+
+| Consumers | msg/sec | avg(ms) | p50(ms) | p99(ms) | Loss |
+|-----------|---------|---------|---------|---------|------|
+| 3         | 1,225   | 0.777   | 0.999   | 2.000   | 0%   |
+| 5         | 1,220   | 0.741   | 0.609   | 1.660   | 0%   |
+| 10        | 1,176   | 0.861   | 0.999   | 2.001   | 0%   |
+| 20        | 1,232   | 0.784   | 0.999   | 2.000   | 0%   |
+| 50        | 1,139   | 0.873   | 0.999   | 2.002   | 0%   |
+
+Throughput is stable across all consumer counts (~8% variance). There is no degradation cliff. This confirms that the single-mutex design is not a bottleneck at this scale — see Section 8.
+
+## Sustained Load — 5,000 messages, 50 consumers, prefetch 50
+
+| Metric | Result |
+|--------|--------|
+| Messages published | 5,000 |
+| Messages acked | 5,000 |
+| Throughput | 1,287 msg/sec |
+| Avg ack latency | 0.875ms |
+| p99 ack latency | 2.002ms |
+| Message loss | 0% |
+| Errors | 0 |
+
+Zero message loss under sustained load with 50 concurrent consumers. At-least-once delivery guarantee held throughout.
+
+## pprof CPU Profile — 50 consumers, 5,000 messages
+
+Captured with `go tool pprof http://localhost:6060/debug/pprof/profile` during the sustained load test.
+
+| Function | CPU% | Interpretation |
+|----------|------|----------------|
+| runtime.cgocall | 63% | OS network syscalls — gRPC transport layer |
+| runtime.procyield | 2.4% | Mutex spinning under contention |
+| runtime.lock2 | 0.6% | Actual mutex acquisition cost |
+
+The bottleneck is gRPC's network I/O layer, not the queue's mutex. Each ack requires a separate TCP round-trip, which dominates CPU time. The single-mutex design produces negligible lock overhead at this message volume.
+
+---
+
 # Systems Learning Outcomes
 
 This project demonstrates understanding of:
@@ -436,6 +501,7 @@ This project demonstrates understanding of:
 - Controlled shutdown lifecycle
 - Structured observability
 - Trade-off driven design
+- Performance profiling and bottleneck identification
 
 The implementation focuses on clarity of semantics over feature completeness.
 

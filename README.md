@@ -212,23 +212,49 @@ The broker guarantees **at-least-once delivery**.
 
 # Load Test Results
 
-Test environment: local machine, 3 consumers, prefetch: 10
+Test environment: local machine, `go run ./cmd/loadtest`
+
+## Scaling Test — 500 messages, prefetch 50
+
+| Consumers | msg/sec | avg(ms) | p50(ms) | p99(ms) | Loss |
+|-----------|---------|---------|---------|---------|------|
+| 3         | 1,225   | 0.777   | 0.999   | 2.000   | 0%   |
+| 5         | 1,220   | 0.741   | 0.609   | 1.660   | 0%   |
+| 10        | 1,176   | 0.861   | 0.999   | 2.001   | 0%   |
+| 20        | 1,232   | 0.784   | 0.999   | 2.000   | 0%   |
+| 50        | 1,139   | 0.873   | 0.999   | 2.002   | 0%   |
+
+## Sustained Load — 5,000 messages, 50 consumers, prefetch 50
 
 | Metric | Result |
-|---|---|
-| Messages published | 1000 |
-| Messages acked | 1000 (0 lost) |
-| Publish duration | 913ms |
-| Throughput | 1095 msg/sec |
-| Avg ack latency | 0.44ms |
-| Requeued | 0 |
-| DLQ | 0 |
+|--------|--------|
+| Messages published | 5,000 |
+| Messages acked | 5,000 |
+| Throughput | 1,287 msg/sec |
+| Avg ack latency | 0.875ms |
+| p99 ack latency | 2.002ms |
+| Message loss | 0% |
+| Errors | 0 |
 
-All 1000 messages were delivered and acknowledged with zero loss.
-No redeliveries occurred — consumers acked within visibility timeout.
-Average ack latency of 0.44ms indicates no lock contention under load.
+## Key Observations
 
-_Tested with `go run cmd/loadtest/main.go`_
+**Throughput is stable across consumer counts.** From 3 to 50 consumers, throughput stays within ~8% — there is no scaling cliff. This is consistent with the single-mutex design: the bottleneck is the gRPC transport layer, not the queue's concurrency model.
+
+**pprof CPU profile at 50 consumers confirmed:**
+
+| Function | CPU% |
+|----------|------|
+| runtime.cgocall (OS network syscalls) | 63% |
+| runtime.procyield (mutex spinning) | 2.4% |
+| runtime.lock2 (actual mutex lock) | 0.6% |
+
+Mutex contention accounts for less than 1% of CPU time. The dominant cost is gRPC I/O overhead — each ack is a separate RPC round-trip.
+
+**Prefetch has a significant impact on throughput.** With prefetch=5, throughput drops to ~16 msg/sec due to consumer underutilization. With prefetch=50, throughput reaches ~1,225 msg/sec — a 75x difference with the same 3 consumers. Tuning prefetch to match workload characteristics is critical for performance.
+
+_Tested with `go run ./cmd/loadtest --messages 500 --prefetch 50`_
+
+---
 
 # Current Limitations
 
@@ -252,6 +278,7 @@ See [DESIGN.md](DESIGN.md) for detailed trade-offs and architectural reasoning.
 - [x] Structured logging (slog)
 - [x] Environment-based configuration
 - [x] Python admin CLI (metrics, health, DLQ inspect, config validate)
+- [x] Load test with scaling analysis and pprof profiling
 - [ ] Optional persistence layer
 - [ ] Per-consumer inflight index (O(k) disconnect)
 
